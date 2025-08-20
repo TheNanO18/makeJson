@@ -1,4 +1,6 @@
 import json
+import requests  # 상단에 추가
+from django.conf import settings
 from django.db import connection, connections
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponseBadRequest, Http404
@@ -151,7 +153,7 @@ def insert_info_view(request):
     config_data = request.session.get('config_data', {})
     table_name = config_data.get('table')
     if not table_name:
-        return redirect('json_generator:select_info_type') # 네임스페이스 추가
+        return redirect('json_generator:select_info_type')
 
     try:
         current_connection = get_current_connection(request)
@@ -166,58 +168,50 @@ def insert_info_view(request):
     input_columns = [col for col in all_columns if col not in excluded_input_columns]
 
     if request.method == 'POST':
-        # 1. 암호화 대상 컬럼 목록 가져오기
         selected_columns = request.POST.getlist('columns')
-        
-        # 2. [추가] 패스워드 해시 정보 가져오기
         password_hash_column = request.POST.get('password_hash_column')
         password_hash_algorithm = request.POST.get('password_hash_algorithm')
 
-        # 3. [추가] 패스워드 해시 컬럼을 암호화 대상에서 제외
         if password_hash_column and password_hash_column in selected_columns:
             selected_columns.remove(password_hash_column)
-        
-        # 4. 사용자가 입력한 Row 데이터 수집 (기존 로직)
+
+        # Row 데이터 수집
         all_rows_data = []
         row_index = 0
         while True:
-            # ...
             if not input_columns or f'row-{row_index}-{input_columns[0]}' not in request.POST:
                 break
             current_row_data = {col: request.POST.get(f'row-{row_index}-{col}', '') for col in input_columns}
             all_rows_data.append(current_row_data)
             row_index += 1
 
-        # 5. 최종 JSON 생성
+        # JSON 생성
         json_list = []
         for row_data in all_rows_data:
-            # 기본 JSON 구조 생성
             final_json = {
                 "info_type": request.session.get('flow_type'),
                 "mode": "en",
                 "table": config_data.get('table'),
                 "algo": config_data.get('algo'),
-                "col": ", ".join(selected_columns), # 제외 처리가 끝난 컬럼 목록 사용
+                "col": ", ".join(selected_columns),
                 "update": "T",
                 "data": row_data
             }
-            
-            # [핵심] 패스워드 정보가 있으면 JSON에 'password' 키 추가
+
             if password_hash_column and password_hash_algorithm:
                 final_json['password'] = {
                     "pass_algo": password_hash_algorithm,
-                    "value": row_data.get(password_hash_column), # 사용자가 입력한 값
+                    "value": row_data.get(password_hash_column),
                     "column": password_hash_column
                 }
-            
+
             json_list.append(final_json)
 
         json_output = json.dumps(json_list, indent=4, ensure_ascii=False)
         return render(request, 'json_generator/display_json.html', {'json_data': json_output})
 
-    context = { 'table_name': table_name, 'input_columns': input_columns }
+    context = {'table_name': table_name, 'input_columns': input_columns}
     return render(request, 'json_generator/insert_info.html', context)
-
 
 # --- 4단계: 기존 정보에 대한 처리 ---
 def select_columns_filter_view(request):
@@ -284,11 +278,14 @@ def select_columns_filter_view(request):
     return render(request, 'json_generator/select_columns_filter.html', context)
 
 
+import requests  # 상단에 추가
+from django.conf import settings
+
 # --- 5단계: 최종 JSON 생성 (기존 정보 전용) ---
 def generate_config_json_view(request):
     config_data = request.session.get('config_data')
     if not config_data:
-        return redirect('json_generator:select_info_type') # 네임스페이스 추가
+        return redirect('json_generator:select_info_type')
 
     if request.method == 'POST':
         pk_values = config_data.get('filter_values', [])
@@ -333,10 +330,30 @@ def generate_config_json_view(request):
             json_list.append(final_json)
 
         json_output = json.dumps(json_list, indent=4, ensure_ascii=False)
-        return render(request, 'json_generator/display_json.html', {'json_data': json_output})
+
+        # --- [추가] 외부 서버로 POST 전송 ---
+        send_url = "http://localhost:8120/test"
+        headers = {
+            "Content-Type": "application/json"
+        }
+        # Optional: 사용자 입력 토큰 포함
+        user_token = request.POST.get('auth_token')  # form에서 받아올 수 있음
+        if user_token:
+            headers["Authorization"] = f"Bearer {user_token}"
+
+        try:
+            response = requests.post(send_url, headers=headers, data=json_output.encode('utf-8'))
+            response.raise_for_status()
+            send_result = {"status": "success", "response": response.text}
+        except Exception as e:
+            send_result = {"status": "error", "message": str(e)}
+
+        return render(request, 'json_generator/display_json.html', {
+            'json_data': json_output,
+            'send_result': send_result  # 템플릿에서 표시 가능
+        })
 
     return render(request, 'json_generator/select_update.html')
-
 
 
 # --- (참고) 독립적인 패스워드 해시 테스트용 뷰 ---

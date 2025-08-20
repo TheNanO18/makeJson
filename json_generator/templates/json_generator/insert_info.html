@@ -16,8 +16,6 @@
         .action-buttons button { background-color: #28a745; color: white; margin-right: 10px; }
         .delete-row-btn { background-color: #dc3545; color: white; padding: 5px 10px; font-size: 12px; }
         .submit-button { background-color: #007bff; color: white; }
-        
-        /* [추가] 패스워드 섹션 배경색 스타일 */
         .password-section { background-color: #f0f8ff; }
     </style>
 </head>
@@ -97,12 +95,10 @@
     </form>
 
     <script>
-        // JavaScript 로직은 변경할 필요 없이 그대로 동작합니다.
         document.addEventListener('DOMContentLoaded', function() {
             const addRowBtn = document.getElementById('add-row-btn');
             const tableBody = document.getElementById('data-table-body');
             
-            // 행 추가 기능
             addRowBtn.addEventListener('click', function() {
                 const newRow = tableBody.querySelector('.data-row').cloneNode(true);
                 const rowIndex = tableBody.children.length;
@@ -117,7 +113,6 @@
                 tableBody.appendChild(newRow);
             });
 
-            // 행 삭제 기능 (이벤트 위임 사용)
             tableBody.addEventListener('click', function(event) {
                 if (event.target && event.target.classList.contains('delete-row-btn')) {
                     if (tableBody.children.length > 1) {

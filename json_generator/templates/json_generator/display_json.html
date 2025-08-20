@@ -6,25 +6,25 @@
     <style>
         body { font-family: sans-serif; padding: 20px; }
         pre { background-color: #f4f4f4; border: 1px solid #ddd; padding: 15px; }
-        .nav-links a {
-            display: inline-block;
-            padding: 8px 15px;
+        .action-buttons, .nav-links { margin-top: 20px; }
+        .action-buttons input, .action-buttons button, .nav-links a {
+            padding: 8px 12px;
             margin-right: 10px;
-            background-color: #e7e7e7;
-            color: black;
-            text-decoration: none;
             border-radius: 4px;
+            border: 1px solid #ccc;
         }
-        .nav-links a:hover {
-            background-color: #ddd;
-        }
+        .send-json-btn { background-color: #007bff; color: white; border: none; cursor: pointer; }
     </style>
 </head>
 <body>
     <h1>생성된 설정 JSON</h1>
     <pre id="jsonData">{{ json_data }}</pre>
-    <button id="copyButton">JSON 복사</button>
-    <br><br>
+
+    <div class="action-buttons">
+        <button id="copyButton">JSON 복사</button>
+        <input type="text" id="authToken" placeholder="Bearer 토큰 입력">
+        <button id="sendButton" class="send-json-btn">JSON 전송</button>
+    </div>
 
     <div class="nav-links">
         <a href="{% url 'json_generator:start' %}">완전히 처음으로 (DB 선택부터)</a>
@@ -32,9 +32,28 @@
     </div>
 
     <script>
+        // JSON 복사
         document.getElementById('copyButton').addEventListener('click', () => {
             navigator.clipboard.writeText(document.getElementById('jsonData').textContent)
                 .then(() => alert('JSON이 클립보드에 복사되었습니다!'));
+        });
+
+        // JSON 전송
+        document.getElementById('sendButton').addEventListener('click', () => {
+            const jsonData = document.getElementById('jsonData').textContent;
+            const token = document.getElementById('authToken').value.trim();
+
+            fetch('http://localhost:8120/api/process', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': token ? `Bearer ${token}` : ''
+                },
+                body: jsonData
+            })
+            .then(resp => resp.text())  // 서버가 JSON이 아닌 경우도 대비
+            .then(data => alert('서버 응답:\n' + data))
+            .catch(err => alert('전송 실패: ' + err));
         });
     </script>
 </body>
