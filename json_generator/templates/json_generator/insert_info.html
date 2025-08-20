@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>새로운 정보 입력</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; padding: 20px; }
+        form { max-width: 90%; margin: auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
+        .section { border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
+        h1, h2 { margin-top: 0; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        input[type="text"] { width: 95%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        .action-buttons button, .submit-button { margin-top: 15px; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        .action-buttons button { background-color: #28a745; color: white; margin-right: 10px; }
+        .delete-row-btn { background-color: #dc3545; color: white; padding: 5px 10px; font-size: 12px; }
+        .submit-button { background-color: #007bff; color: white; }
+        
+        /* [추가] 패스워드 섹션 배경색 스타일 */
+        .password-section { background-color: #f0f8ff; }
+    </style>
+</head>
+<body>
+    <h1>새로운 정보 입력: `{{ table_name }}` 테이블</h1>
+    <p>'새로운 정보' 흐름을 선택하셨습니다. 암호화할 컬럼을 선택하고, 아래 표에 데이터를 입력하세요. '행 추가' 버튼으로 여러 데이터를 한 번에 추가할 수 있습니다.</p>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="section">
+            <h2>암호화할 컬럼 선택</h2>
+            <p style="color: #555;">일반 암호화(Encryption)를 적용할 컬럼들을 선택하세요.<br>(패스워드 해시 처리할 컬럼은 아래 '패스워드' 섹션에서 별도로 선택해주세요.)</p>
+            {% for column in input_columns %}
+                <label style="display: inline-block; margin-right: 15px; font-weight: normal;">
+                    <input type="checkbox" name="columns" value="{{ column }}" checked>
+                    {{ column }}
+                </label>
+            {% endfor %}
+        </div>
+
+        <div class="section password-section">
+            <h2>(선택) 패스워드 해시 처리</h2>
+            <p style="color: #555;">패스워드처럼 단방향 해시를 적용할 컬럼과 알고리즘을 선택하세요. 여기서 선택한 컬럼은 위 '암호화할 컬럼' 목록에 포함되어 있어도 자동으로 제외됩니다.</p>
+            <div>
+                <label for="passwordColumn" style="font-weight: bold;">패스워드 컬럼:</label>
+                <select name="password_hash_column" id="passwordColumn" style="padding: 5px;">
+                    <option value="">-- 선택 안함 --</option>
+                    {% for column in input_columns %}
+                        <option value="{{ column }}">{{ column }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="margin-top: 10px;">
+                <label for="hashAlgorithm" style="font-weight: bold;">해시 알고리즘:</label>
+                <select name="password_hash_algorithm" id="hashAlgorithm" style="padding: 5px;">
+                    <option value="bcrypt">Bcrypt</option>
+                    <option value="scrypt">Scrypt</option>
+                    <option value="PBKDF2-SHA256">PBKDF2-SHA256</option>
+                    <option value="Argon2">Argon2</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>데이터 입력</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            {% for col_name in input_columns %}
+                                <th>{{ col_name }}</th>
+                            {% endfor %}
+                            <th style="width: 50px;">삭제</th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-table-body">
+                        <tr class="data-row">
+                            {% for column in input_columns %}
+                            <td>
+                                <input type="text" name="row-0-{{ column }}">
+                            </td>
+                            {% endfor %}
+                            <td>
+                                <button type="button" class="delete-row-btn">X</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="action-buttons">
+                <button type="button" id="add-row-btn">+ 행 추가</button>
+            </div>
+        </div>
+
+        <button type="submit" class="submit-button">데이터 추가 및 JSON 생성</button>
+    </form>
+
+    <script>
+        // JavaScript 로직은 변경할 필요 없이 그대로 동작합니다.
+        document.addEventListener('DOMContentLoaded', function() {
+            const addRowBtn = document.getElementById('add-row-btn');
+            const tableBody = document.getElementById('data-table-body');
+            
+            // 행 추가 기능
+            addRowBtn.addEventListener('click', function() {
+                const newRow = tableBody.querySelector('.data-row').cloneNode(true);
+                const rowIndex = tableBody.children.length;
+
+                newRow.querySelectorAll('input[type="text"]').forEach(input => {
+                    input.value = '';
+                    const oldName = input.name;
+                    const nameParts = oldName.split('-');
+                    const colName = nameParts.slice(2).join('-');
+                    input.name = `row-${rowIndex}-${colName}`;
+                });
+                tableBody.appendChild(newRow);
+            });
+
+            // 행 삭제 기능 (이벤트 위임 사용)
+            tableBody.addEventListener('click', function(event) {
+                if (event.target && event.target.classList.contains('delete-row-btn')) {
+                    if (tableBody.children.length > 1) {
+                        event.target.closest('.data-row').remove();
+                    } else {
+                        alert('마지막 행은 삭제할 수 없습니다.');
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

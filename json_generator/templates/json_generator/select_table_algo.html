@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>테이블 및 알고리즘 선택</title>
+</head>
+<body>
+    <h1>테이블 선택</h1>
+    <form method="post">
+        {% csrf_token %}
+        <h2>테이블 선택</h2>
+        <select name="table_name" required>
+            {% for name in table_names %}
+                <option value="{{ name }}">{{ name }}</option>
+            {% endfor %}
+        </select>
+
+        {% if mode == 'en' %}
+            <h2>알고리즘 선택</h2>
+            <select name="algo" required>
+                {% for algo in algorithms %}
+                    <option value="{{ algo }}">{{ algo }}</option>
+                {% endfor %}
+            </select>
+        {% endif %}
+
+        <br><br>
+        <button type="submit">다음</button>
+    </form>
+</body>
+</html>

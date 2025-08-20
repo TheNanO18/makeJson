@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>JSON 생성 완료</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        pre { background-color: #f4f4f4; border: 1px solid #ddd; padding: 15px; }
+        .nav-links a {
+            display: inline-block;
+            padding: 8px 15px;
+            margin-right: 10px;
+            background-color: #e7e7e7;
+            color: black;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        .nav-links a:hover {
+            background-color: #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>생성된 설정 JSON</h1>
+    <pre id="jsonData">{{ json_data }}</pre>
+    <button id="copyButton">JSON 복사</button>
+    <br><br>
+
+    <div class="nav-links">
+        <a href="{% url 'json_generator:start' %}">완전히 처음으로 (DB 선택부터)</a>
+        <a href="{% url 'json_generator:select_info_type' %}">다른 작업 수행 (현재 DB 유지)</a>
+    </div>
+
+    <script>
+        document.getElementById('copyButton').addEventListener('click', () => {
+            navigator.clipboard.writeText(document.getElementById('jsonData').textContent)
+                .then(() => alert('JSON이 클립보드에 복사되었습니다!'));
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>컬럼 및 Row 선택</title>
+    <style>
+        /* CSS는 변경 사항이 없으므로 그대로 사용합니다. */
+        body { font-family: sans-serif; padding: 20px; }
+        .section { border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
+        h1, h2 { margin-top: 0; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        tr:hover { background-color: #f5f5f5; }
+        .table-container { max-height: 50vh; overflow-y: auto; }
+        button { cursor: pointer; border-radius: 5px; border: none; padding: 10px 20px; font-size: 16px; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 25px; border: 1px solid #888; width: 50%; border-radius: 5px; box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2); }
+        .close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
+        .close-button:hover, .close-button:focus { color: black; text-decoration: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>적용할 컬럼 및 대상 Row 선택</h1>
+    
+    <button id="openHashModalBtn" type="button" style="margin-bottom: 20px; background-color: #007bff; color: white;">
+        🔑 패스워드 해시 처리 설정
+    </button>
+
+    <p>아래 표에서 원하는 Row를 선택하고, 적용할 컬럼들을 체크한 후 'JSON 생성' 버튼을 누르세요.</p>
+
+    <form id="mainFilterForm" method="post">
+        {% csrf_token %}
+        
+        <div class="section">
+            <h2>적용할 컬럼 선택</h2>
+            {% for column in display_columns %}
+                <label style="margin-right: 15px;">
+                    <input type="checkbox" name="columns" value="{{ column }}" checked> {{ column }}
+                </label>
+            {% endfor %}
+        </div>
+
+        <div class="section">
+            <h2>대상 Row 선택</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAllCheckbox"></th>
+                            {% for col_name in all_columns %}
+                                <th>{{ col_name }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p_row in processed_rows %}
+                            <tr>
+                                <td><input type="checkbox" name="selected_pk_values" value="{{ p_row.pk_value }}"></td>
+                                {% for cell in p_row.values %}
+                                    <td>{{ cell }}</td>
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <button type="submit" style="background-color: #28a745; color: white;">JSON 생성 단계로 이동</button>
+    </form>
+
+    <div id="passwordHashModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>패스워드 해시 처리 설정</h2>
+            <p>해시를 적용할 컬럼과 알고리즘을 선택 후 '적용' 버튼을 누르세요.</p>
+            
+            <form id="hashForm">
+                <div style="margin-bottom: 15px;">
+                    <label for="passwordColumn" style="font-weight: bold; display: inline-block; width: 150px;">패스워드 컬럼:</label>
+                    <select name="password_column" id="passwordColumn" style="padding: 8px; font-size: 14px;">
+                        {% for column in all_columns %}
+                            <option value="{{ column }}">{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label for="hashAlgorithm" style="font-weight: bold; display: inline-block; width: 150px;">해시 알고리즘:</label>
+                    <select name="hash_algorithm" id="hashAlgorithm" style="padding: 8px; font-size: 14px;">
+                        <option value="bcrypt">Bcrypt</option>
+                        <option value="scrypt">Scrypt</option>
+                        <option value="PBKDF2-SHA256">PBKDF2-SHA256</option>
+                        <option value="Argon2">Argon2</option>
+                    </select>
+                </div>
+                <hr style="margin: 20px 0;">
+                <button type="button" id="applyHashInfoBtn" style="background-color: #007bff; color: white;">설정 적용</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- 기본 테이블 체크박스 로직 (변경 없음) ---
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const rowCheckboxes = document.querySelectorAll('input[name="selected_pk_values"]');
+        selectAllCheckbox.addEventListener('change', function() {
+            rowCheckboxes.forEach(checkbox => { checkbox.checked = this.checked; });
+        });
+        rowCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                selectAllCheckbox.checked = Array.from(rowCheckboxes).every(cb => cb.checked);
+            });
+        });
+
+        // --- [수정 4] 모달 JavaScript 로직 전체 변경 ---
+        const modal = document.getElementById('passwordHashModal');
+        const openBtn = document.getElementById('openHashModalBtn');
+        const closeBtn = document.querySelector('.close-button');
+        
+        // 새로운 로직에 필요한 요소들
+        const applyHashInfoBtn = document.getElementById('applyHashInfoBtn');
+        const mainFilterForm = document.getElementById('mainFilterForm');
+        const passwordColumnSelect = document.getElementById('passwordColumn');
+        const hashAlgorithmSelect = document.getElementById('hashAlgorithm');
+
+        // 모달 열기 (변경 없음)
+        openBtn.addEventListener('click', function() {
+            modal.style.display = 'block';
+        });
+
+        // 모달 닫기 (변경 없음)
+        closeBtn.addEventListener('click', function() {
+            modal.style.display = 'none';
+        });
+        window.addEventListener('click', function(event) {
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        });
+
+        // 🔧 [핵심] 모달의 '설정 적용' 버튼 클릭 시 로직
+        applyHashInfoBtn.addEventListener('click', function() {
+            const p_col = passwordColumnSelect.value;
+            const p_algo = hashAlgorithmSelect.value;
+
+            // 1. 기존에 추가했을 수 있는 hidden input들을 먼저 제거합니다. (중복 방지)
+            const oldInputs = mainFilterForm.querySelectorAll('input[name^="password_hash_"]');
+            oldInputs.forEach(input => input.remove());
+
+            // 2. 새로운 hidden input들을 생성합니다.
+            const colInput = document.createElement('input');
+            colInput.type = 'hidden';
+            colInput.name = 'password_hash_column'; // views.py에서 받을 이름
+            colInput.value = p_col;
+
+            const algoInput = document.createElement('input');
+            algoInput.type = 'hidden';
+            algoInput.name = 'password_hash_algorithm'; // views.py에서 받을 이름
+            algoInput.value = p_algo;
+
+            // 3. 메인 폼에 생성한 input들을 추가합니다.
+            mainFilterForm.appendChild(colInput);
+            mainFilterForm.appendChild(algoInput);
+
+            // 4. 사용자에게 알리고 모달을 닫습니다.
+            alert(`패스워드 해시 정보가 설정되었습니다.\n- 컬럼: ${p_col}\n- 알고리즘: ${p_algo}\n\n이제 'JSON 생성 단계로 이동' 버튼을 눌러주세요.`);
+            modal.style.display = 'none';
+        });
+    </script>
+</body>
+</html>

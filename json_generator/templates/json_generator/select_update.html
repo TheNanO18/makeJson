@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>DB 업데이트 선택</title>
+</head>
+<body>
+    <h1>DB 업데이트 유무 선택</h1>
+    <form method="post">
+        {% csrf_token %}
+        <p>작업 후 실제 데이터베이스를 변경하시겠습니까?</p>
+        <button type="submit" name="update_db" value="T">예 (Update)</button>
+        <button type="submit" name="update_db" value="F">아니오 (Generate JSON only)</button>
+    </form>
+</body>
+</html>

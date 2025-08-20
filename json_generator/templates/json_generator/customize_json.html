@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>컬럼 및 필터 선택</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .container { display: flex; gap: 40px; }
+        .section { border: 1px solid #ccc; padding: 20px; border-radius: 5px; }
+        h2 { margin-top: 0; }
+        label { display: block; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <h1>"{{ table_name }}" 테이블 설정</h1>
+    <p>JSON으로 만들 컬럼을 선택하고, 필요시 데이터를 필터링할 조건을 입력하세요.</p>
+
+    <form action="{% url 'json_generator:generate_json' %}" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="table_name" value="{{ table_name }}">
+
+        <div class="container">
+            <div class="section">
+                <h2>1. 컬럼 선택</h2>
+                {% for column in columns %}
+                    <label>
+                        <input type="checkbox" name="columns" value="{{ column }}" checked>
+                        {{ column }}
+                    </label>
+                {% endfor %}
+            </div>
+
+            <div class="section">
+                <h2>2. 데이터 필터링 (선택 사항)</h2>
+                <p>특정 Row만 가져오려면 아래를 입력하세요.</p>
+                <label for="filter_column">필터링할 컬럼:</label>
+                <select id="filter_column" name="filter_column">
+                    <option value="">-- 컬럼 선택 --</option>
+                    {% for column in columns %}
+                        <option value="{{ column }}">{{ column }}</option>
+                    {% endfor %}
+                </select>
+
+                <br><br>
+
+                <label for="filter_value">찾을 값:</label>
+                <input type="text" id="filter_value" name="filter_value" placeholder="예: 123 또는 apple">
+            </div>
+        </div>
+
+        <br>
+        <button type="submit" style="padding: 10px 20px; font-size: 16px;">JSON 생성</button>
+    </form>
+</body>
+</html>

@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>암호화할 정보 유형 선택</title>
+</head>
+<body>
+    <h1>암호화할 정보 유형 선택</h1>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" name="mode" value="new">새로운 정보</button>
+        <button type="submit" name="mode" value="old">기존 정보</button>
+    </form>
+</body>
+</html>

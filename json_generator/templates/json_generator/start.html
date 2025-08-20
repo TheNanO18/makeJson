@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>시작하기</title>
+</head>
+<body>
+    <h1>DB 연결 방식을 선택하세요</h1>
+    <form action="{% url 'json_generator:start' %}" method="post">
+        {% csrf_token %}
+        <button type="submit" name="db_source" value="default">
+            기본 DB 사용 (settings.py)
+        </button>
+    </form>
+    <br>
+    <a href="{% url 'json_generator:get_db_info' %}">
+        <button>새로운 DB 정보 입력</button>
+    </a>
+</body>
+</html>

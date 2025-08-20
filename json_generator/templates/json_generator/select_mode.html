@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>모드 선택</title>
+</head>
+<body>
+    <h1>모드 선택</h1>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" name="mode" value="en">암호화 (Encrypt)</button>
+        <button type="submit" name="mode" value="de">복호화 (Decrypt)</button>
+    </form>
+</body>
+</html>
