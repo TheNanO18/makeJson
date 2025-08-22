@@ -9,6 +9,7 @@ urlpatterns = [
     path('', views.start_view, name='start'),
 
     path('get-db-info',            views.get_db_info_view,           name='get_db_info'),
+    path('select-route-type/',     views.select_route_type_view,     name='select_route_type'),
     path('select-info-type/',      views.select_info_type_view,      name='select_info_type'),
     path('select-mode/',           views.select_mode_view,           name='select_mode'),
     path('insert-info/',           views.insert_info_view,           name='insert_info'),

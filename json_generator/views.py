@@ -1,5 +1,5 @@
 import json
-import requests  # 상단에 추가
+import requests
 from django.conf import settings
 from django.db import connection, connections
 from django.shortcuts import render, redirect
@@ -8,10 +8,11 @@ import psycopg2
 
 # --- 1단계: 시작 페이지 ---
 def start_view(request):
+    # 이 뷰에서만 세션을 완전히 초기화합니다.
     request.session.flush()
     if request.method == 'POST':
         request.session['use_default_db'] = True
-        return redirect('json_generator:select_info_type') # 네임스페이스 추가
+        return redirect('json_generator:select_route_type')
     return render(request, 'json_generator/start.html')
 
 
@@ -55,7 +56,7 @@ def get_db_info_view(request):
                 'PASSWORD': current_input['password'],
             }
             request.session['use_default_db'] = False
-            return redirect('json_generator:select_info_type') # 네임스페이스 추가
+            return redirect('json_generator:select_route_type')
 
     return render(request, 'json_generator/get_db_info.html', {'db_info': form_data})
 
@@ -82,35 +83,44 @@ def get_current_connection(request):
     }
     return connections[db_alias]
 
-# --- 2단계: 정보 유형 선택 ---
-def select_info_type_view(request):
-    if request.method == 'GET':
-        if 'config_data' in request.session:
-            del request.session['config_data']
-        if 'flow_type' in request.session:
-            del request.session['flow_type']
-        return render(request, 'json_generator/select_info_type.html')
+# --- [수정됨] ---
+def select_route_type_view(request):
+    if request.method == 'POST':
+        # 여기서 처음 config_data를 생성합니다.
+        request.session['config_data'] = {'route_type': request.POST.get('route_type')}
+        return redirect('json_generator:select_info_type')
+    
+    # GET 요청 시 세션을 삭제하는 코드를 완전히 제거했습니다.
+    return render(request, 'json_generator/select_route_type.html')
 
+# --- [수정됨] ---
+def select_info_type_view(request):
     if request.method == 'POST':
         info_type = request.POST.get('mode')
+        config_data = request.session.get('config_data', {})
 
         if info_type == 'new':
-            request.session['config_data'] = {'mode': 'en'}
+            config_data['mode'] = 'en'
+            request.session['config_data'] = config_data
             request.session['flow_type'] = 'new'
-            return redirect('json_generator:select_table_algo') # 네임스페이스 추가
+            return redirect('json_generator:select_table_algo')
+            
         elif info_type == 'old':
             request.session['flow_type'] = 'old'
-            return redirect('json_generator:select_mode') # 네임스페이스 추가
+            return redirect('json_generator:select_mode')
     
-    return redirect('json_generator:start') # 네임스페이스 추가
+    # GET 요청 시 세션을 삭제하는 코드를 완전히 제거했습니다.
+    return render(request, 'json_generator/select_info_type.html')
 
-# --- 2.5단계: 암/복호화 모드 선택 ---
+# --- [수정됨] ---
 def select_mode_view(request):
     if request.method == 'POST':
-        request.session['config_data'] = {'mode': request.POST.get('mode')}
-        return redirect('json_generator:select_table_algo') # 네임스페이스 추가
-    if 'config_data' in request.session:
-        del request.session['config_data']
+        config_data = request.session.get('config_data', {})
+        config_data['mode'] = request.POST.get('mode')
+        request.session['config_data'] = config_data
+        return redirect('json_generator:select_table_algo')
+    
+    # GET 요청 시 세션을 삭제하는 코드를 완전히 제거했습니다.
     return render(request, 'json_generator/select_mode.html')
 
 # --- 3단계: 테이블 및 알고리즘 선택 ---
@@ -127,7 +137,7 @@ def select_table_algo_view(request):
     
     config_data = request.session.get('config_data', {})
     mode = config_data.get('mode')
-    if not mode: return redirect('json_generator:select_info_type') # 네임스페이스 추가
+    if not mode: return redirect('json_generator:select_route_type')
 
     excluded_prefixes = ['auth_', 'django_']
     user_tables = [table for table in all_public_tables if not any(table.startswith(prefix) for prefix in excluded_prefixes)]
@@ -141,9 +151,9 @@ def select_table_algo_view(request):
         flow_type = request.session.get('flow_type')
         
         if flow_type == 'new':
-            return redirect('json_generator:insert_info') # 네임스페이스 추가
+            return redirect('json_generator:insert_info')
         else:
-            return redirect('json_generator:select_columns_filter') # 네임스페이스 추가
+            return redirect('json_generator:select_columns_filter')
 
     context = {'table_names': user_tables, 'algorithms': algorithms, 'mode': mode}
     return render(request, 'json_generator/select_table_algo.html', context)
@@ -153,7 +163,7 @@ def insert_info_view(request):
     config_data = request.session.get('config_data', {})
     table_name = config_data.get('table')
     if not table_name:
-        return redirect('json_generator:select_info_type')
+        return redirect('json_generator:select_route_type')
 
     try:
         current_connection = get_current_connection(request)
@@ -175,7 +185,6 @@ def insert_info_view(request):
         if password_hash_column and password_hash_column in selected_columns:
             selected_columns.remove(password_hash_column)
 
-        # Row 데이터 수집
         all_rows_data = []
         row_index = 0
         while True:
@@ -185,17 +194,17 @@ def insert_info_view(request):
             all_rows_data.append(current_row_data)
             row_index += 1
 
-        # JSON 생성
         json_list = []
         for row_data in all_rows_data:
             final_json = {
-                "info_type": request.session.get('flow_type'),
-                "mode": "en",
-                "table": config_data.get('table'),
-                "algo": config_data.get('algo'),
-                "col": ", ".join(selected_columns),
-                "update": "T",
-                "data": row_data
+                "route_type"  : config_data.get('route_type'),
+                "info_type"   : request.session.get('flow_type'),
+                "mode"        : "en",
+                "table"       : config_data.get('table'),
+                "algo"        : config_data.get('algo'),
+                "col"         : ", ".join(selected_columns),
+                "update"      : "T",
+                "data"        : row_data
             }
 
             if password_hash_column and password_hash_algorithm:
@@ -217,7 +226,7 @@ def insert_info_view(request):
 def select_columns_filter_view(request):
     config_data = request.session.get('config_data', {})
     table_name = config_data.get('table')
-    if not table_name: return redirect('json_generator:select_info_type') # 네임스페이스 추가
+    if not table_name: return redirect('json_generator:select_route_type')
 
     try:
         current_connection = get_current_connection(request)
@@ -238,22 +247,16 @@ def select_columns_filter_view(request):
     processed_rows = [{'pk_value': row[pk_index], 'values': row} for row in all_rows]
 
     if request.method == 'POST':
-        # 1. 사용자가 암호화 대상으로 선택한 컬럼 목록을 가져옵니다.
         selected_columns = request.POST.getlist('columns')
-        
-        # 2. 사용자가 패스워드 해시 대상으로 선택한 컬럼을 가져옵니다.
         password_hash_column = request.POST.get('password_hash_column')
 
-        # [핵심] 만약 패스워드 해시 컬럼이 암호화 대상 목록에 포함되어 있다면, 여기서 제거합니다.
         if password_hash_column and password_hash_column in selected_columns:
             selected_columns.remove(password_hash_column)
 
-        # 3. 이제 "깨끗해진" 컬럼 목록을 config_data에 저장합니다.
         config_data = request.session.get('config_data', {})
         config_data['columns'] = selected_columns
         
-        # --- 나머지 기존 로직 ---
-        config_data['filter_column'] = primary_key_column # (코드 순서상 primary_key_column이 먼저 정의되어야 함)
+        config_data['filter_column'] = primary_key_column
         config_data['filter_values'] = request.POST.getlist('selected_pk_values')
         
         password_hash_algorithm = request.POST.get('password_hash_algorithm')
@@ -277,15 +280,11 @@ def select_columns_filter_view(request):
     }
     return render(request, 'json_generator/select_columns_filter.html', context)
 
-
-import requests  # 상단에 추가
-from django.conf import settings
-
 # --- 5단계: 최종 JSON 생성 (기존 정보 전용) ---
 def generate_config_json_view(request):
     config_data = request.session.get('config_data')
     if not config_data:
-        return redirect('json_generator:select_info_type')
+        return redirect('json_generator:select_route_type')
 
     if request.method == 'POST':
         pk_values = config_data.get('filter_values', [])
@@ -307,12 +306,13 @@ def generate_config_json_view(request):
         json_list = []
         for pk_value in pk_values:
             final_json = {
-                "info_type": request.session.get('flow_type'),
-                "mode": config_data.get('mode'),
-                "table": config_data.get('table'),
-                filter_column: pk_value,
-                "col": ", ".join(config_data.get('columns', [])),
-                "update": request.POST.get('update_db', 'F')
+                "route_type"  : config_data.get('route_type'),
+                "info_type"   : request.session.get('flow_type'),
+                "mode"        : config_data.get('mode'),
+                "table"       : config_data.get('table'),
+                filter_column : pk_value,
+                "col"         : ", ".join(config_data.get('columns', [])),
+                "update"      : request.POST.get('update_db', 'F')
             }
             if final_json['mode'] == 'en':
                 final_json['algo'] = config_data.get('algo')
@@ -331,13 +331,11 @@ def generate_config_json_view(request):
 
         json_output = json.dumps(json_list, indent=4, ensure_ascii=False)
 
-        # --- [추가] 외부 서버로 POST 전송 ---
         send_url = "http://localhost:8120/test"
         headers = {
             "Content-Type": "application/json"
         }
-        # Optional: 사용자 입력 토큰 포함
-        user_token = request.POST.get('auth_token')  # form에서 받아올 수 있음
+        user_token = request.POST.get('auth_token')
         if user_token:
             headers["Authorization"] = f"Bearer {user_token}"
 
@@ -350,11 +348,10 @@ def generate_config_json_view(request):
 
         return render(request, 'json_generator/display_json.html', {
             'json_data': json_output,
-            'send_result': send_result  # 템플릿에서 표시 가능
+            'send_result': send_result
         })
 
     return render(request, 'json_generator/select_update.html')
-
 
 # --- (참고) 독립적인 패스워드 해시 테스트용 뷰 ---
 def process_password_hash_view(request):

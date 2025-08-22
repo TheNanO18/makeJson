@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>통신 방식 선택</title>
+</head>
+<body>
+    <h1>통신 방식 선택</h1>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" name="route_type" value="api">api</button>
+        <button type="submit" name="route_type" value="proxy">proxy</button>
+    </form>
+</body>
+</html>
